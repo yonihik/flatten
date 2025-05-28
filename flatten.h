@@ -3,11 +3,11 @@
 #include <concepts>
 #include <iterator>
 #include <ranges>
-
+#include "range/v3/range/concepts.hpp"
 template <std::ranges::random_access_range Outer>
   requires std::ranges::view<Outer> &&
            std::ranges::random_access_range<std::ranges::range_value_t<Outer>>
-class flatten_view : public std::ranges::view_interface<flatten_view<Outer>> {
+class flatten_view : public std::ranges::view_interface<flatten_view<Outer>>, public ranges::view_base {
   Outer m_outer;
 
 public:
