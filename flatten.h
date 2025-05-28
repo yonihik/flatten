@@ -4,8 +4,6 @@
 #include <iterator>
 #include <ranges>
 
-#include <iostream>
-
 template <std::ranges::random_access_range Outer>
   requires std::ranges::view<Outer> &&
            std::ranges::random_access_range<std::ranges::range_value_t<Outer>>
@@ -28,9 +26,7 @@ public:
   public:
     sentinel() = default;
     sentinel(OuterSentinel outer_end, InnerSentinel inner_end)
-        : m_outer_end(outer_end), m_inner_end(inner_end) {
-      std::cout << "sentinel constructor called" << std::endl;
-    }
+        : m_outer_end(outer_end), m_inner_end(inner_end) {}
 
   private:
     OuterSentinel m_outer_end;
@@ -56,12 +52,11 @@ public:
           m_inner_view(*m_outer_it) {
       auto it = std::ranges::begin(m_inner_view) + inner_idx;
       m_inner_it = it;
-      std::cout << "iterator constructor called" << std::endl;
     }
 
-    // what if we copt an iterator that reached the end?
     iterator(const iterator &other)
-        : m_outer_it(other.m_outer_it), m_outer_end(other.m_outer_end), m_inner_view(other.m_inner_view) {
+        : m_outer_it(other.m_outer_it), m_outer_end(other.m_outer_end),
+          m_inner_view(other.m_inner_view) {
       if (m_outer_it != m_outer_end) {
         m_inner_view = *m_outer_it;
         m_inner_it =
@@ -222,15 +217,7 @@ public:
       // <= *this
       std::ptrdiff_t dist = 0;
       auto it = other;
-      // auto oit = other.m_outer_it;
-      // auto inner_view = *oit;
-      // auto iit = inner_view.begin() + (other.m_inner_it -
-      // other.m_inner_view.begin());
       while (it.m_outer_it != m_outer_it) {
-        // maybe simply add std::ranges::size
-        // std::cout << std::ranges::size(it.m_inner_view) << std::endl;
-        // std::cout << (it.m_inner_it - std::ranges::begin(it.m_inner_view))
-        //           << std::endl;
         dist += std::ranges::size(it.m_inner_view) -
                 (it.m_inner_it - std::ranges::begin(it.m_inner_view));
         ++it.m_outer_it;
@@ -277,7 +264,6 @@ public:
   iterator begin() {
     auto outer_begin = std::ranges::begin(m_outer);
     auto outer_end = std::ranges::end(m_outer);
-    // std::cout << *((*outer_begin).begin()) << std::endl; // Debugging line
     return iterator(outer_begin, outer_end, 0);
   }
   sentinel end() {
