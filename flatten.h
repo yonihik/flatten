@@ -61,16 +61,29 @@ public:
 
     // what if we copt an iterator that reached the end?
     iterator(const iterator &other)
-        : iterator(other.m_outer_it, other.m_outer_end,
-                   other.m_inner_it - std::ranges::begin(other.m_inner_view)) {}
+        : m_outer_it(other.m_outer_it), m_outer_end(other.m_outer_end), m_inner_view(other.m_inner_view) {
+      if (m_outer_it != m_outer_end) {
+        m_inner_view = *m_outer_it;
+        m_inner_it =
+            std::ranges::begin(m_inner_view) +
+            (other.m_inner_it - std::ranges::begin(other.m_inner_view));
+      }
+    }
+
+    friend void swap(iterator &first, iterator &second) {
+      using std::swap;
+
+      // by swapping the members of two objects,
+      // the two objects are effectively swapped
+      swap(first.m_outer_it, second.m_outer_it);
+      swap(first.m_outer_end, second.m_outer_end);
+      swap(first.m_inner_view, second.m_inner_view);
+      swap(first.m_inner_it, second.m_inner_it);
+    }
 
     iterator &operator=(const iterator &other) {
-      this->m_outer_it = other.m_outer_it;
-      this->m_outer_end = other.m_outer_end;
-      this->m_inner_view = *m_outer_it;
-      this->m_inner_it =
-          std::ranges::begin(m_inner_view) +
-          (other.m_inner_it - std::ranges::begin(other.m_inner_view));
+      iterator tmp(other);
+      swap(*this, tmp);
       return *this;
     }
     value_type operator*() const { return *m_inner_it; }
@@ -82,7 +95,8 @@ public:
     }
 
     iterator &operator--() {
-      while (m_inner_it == std::ranges::begin(m_inner_view)) {
+      while (m_inner_it == InnerIter{} ||
+             m_inner_it == std::ranges::begin(m_inner_view)) {
         --m_outer_it;
         m_inner_view = *m_outer_it;
         m_inner_it = std::ranges::end(m_inner_view);
@@ -147,7 +161,6 @@ public:
 
     bool operator==(const iterator &other) const {
       return m_outer_it == other.m_outer_it && m_inner_it == other.m_inner_it;
-      ;
     }
 
     bool operator!=(const iterator &other) const { return !(*this == other); }
