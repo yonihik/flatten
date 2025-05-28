@@ -12,9 +12,12 @@ template <std::ranges::random_access_range Outer>
 class flatten_view : public std::ranges::view_interface<flatten_view<Outer>> {
   Outer m_outer;
 
+public:
   using Inner = std::ranges::range_value_t<Outer>;
   using OuterIter = std::ranges::iterator_t<Outer>;
+  using OuterSentinel = std::ranges::sentinel_t<Outer>;
   using InnerIter = std::ranges::iterator_t<Inner>;
+  using InnerSentinel = std::ranges::sentinel_t<Inner>;
 
 public:
   class iterator;
@@ -24,14 +27,14 @@ public:
 
   public:
     sentinel() = default;
-    sentinel(OuterIter outer_it, InnerIter inner_it)
-        : m_outer_it(outer_it), m_inner_it(inner_it) {
+    sentinel(OuterSentinel outer_end, InnerSentinel inner_end)
+        : m_outer_end(outer_end), m_inner_end(inner_end) {
       std::cout << "sentinel constructor called" << std::endl;
     }
 
   private:
-    OuterIter m_outer_it;
-    InnerIter m_inner_it;
+    OuterSentinel m_outer_end;
+    InnerSentinel m_inner_end;
   };
 
 public:
@@ -47,13 +50,29 @@ public:
     using iterator_concept = std::random_access_iterator_tag;
 
     iterator() = default;
-    iterator(OuterIter outer_it, OuterIter outer_end, size_t inner_idx)
+    iterator(OuterIter outer_it, OuterSentinel outer_end,
+             std::ptrdiff_t inner_idx)
         : m_outer_it(outer_it), m_outer_end(outer_end),
-          m_inner_view(*m_outer_it),
-          m_inner_it(std::ranges::begin(m_inner_view) + inner_idx) {
+          m_inner_view(*m_outer_it) {
+      auto it = std::ranges::begin(m_inner_view) + inner_idx;
+      m_inner_it = it;
       std::cout << "iterator constructor called" << std::endl;
     }
 
+    // what if we copt an iterator that reached the end?
+    iterator(const iterator &other)
+        : iterator(other.m_outer_it, other.m_outer_end,
+                   other.m_inner_it - std::ranges::begin(other.m_inner_view)) {}
+
+    iterator &operator=(const iterator &other) {
+      this->m_outer_it = other.m_outer_it;
+      this->m_outer_end = other.m_outer_end;
+      this->m_inner_view = *m_outer_it;
+      this->m_inner_it =
+          std::ranges::begin(m_inner_view) +
+          (other.m_inner_it - std::ranges::begin(other.m_inner_view));
+      return *this;
+    }
     value_type operator*() const { return *m_inner_it; }
 
     iterator &operator++() {
@@ -64,8 +83,8 @@ public:
 
     iterator &operator--() {
       while (m_inner_it == std::ranges::begin(m_inner_view)) {
-        --m_outer_end;
-        m_inner_view = *m_outer_end;
+        --m_outer_it;
+        m_inner_view = *m_outer_it;
         m_inner_it = std::ranges::end(m_inner_view);
       }
       --m_inner_it;
@@ -86,36 +105,7 @@ public:
     }
 
     bool operator==(const sentinel &s) const {
-      // if (m_outer_it == s.m_outer_it) {
-      //   return m_inner_it == s.m_inner_it;
-      // }
-      // if (m_outer_it < s.m_outer_it) {
-      //   for (auto &elem : m_inner_view) {
-      //     std::cout << elem << std::endl;
-      //   }
-      //   std::cout << "current: " << *m_inner_it << std::endl;
-      //   std::cout << "distance"
-      //             << std::ranges::distance(m_inner_it, m_inner_view.end())
-      //             << std::endl;
-      //   if (std::ranges::distance(m_inner_it, m_inner_view.end()) > 0) {
-      //     return false;
-      //   }
-      //   auto it = m_outer_it;
-      //   it++;
-      //   while (it != s.m_outer_it) {
-      //     if (std::ranges::size(*it) > 0) {
-      //       return false;
-      //     }
-      //     ++it;
-      //   }
-      //   if (it == m_outer_end) {
-      //     return true;
-      //   } else {
-      //     return m_inner_it == s.m_inner_it;
-      //   }
-      // }
-      // return false;
-      return m_outer_it == s.m_outer_it && m_inner_it == s.m_inner_it;
+      return m_outer_it == s.m_outer_end && m_inner_it == s.m_inner_end;
       ;
     }
 
@@ -156,18 +146,8 @@ public:
     }
 
     bool operator==(const iterator &other) const {
-      // if (m_outer_it == other.m_outer_it) {
-      return m_inner_it == other.m_inner_it;
-      // }
-      // // maybe make this into an are_equivalent private method that may be
-      // used
-      // // in skip_empty
-      // else if (m_outer_it < other.m_outer_it) {
-      //   return (other - *this == 0);
-      // } else if (m_outer_it > other.m_outer_it) {
-      //   return (*this - other == 0);
-      // }
-      // return true;
+      return m_outer_it == other.m_outer_it && m_inner_it == other.m_inner_it;
+      ;
     }
 
     bool operator!=(const iterator &other) const { return !(*this == other); }
@@ -217,6 +197,7 @@ public:
     friend iterator operator+(std::ptrdiff_t n, const iterator &it) {
       return it + n;
     }
+
     iterator operator-(std::ptrdiff_t n) const {
       iterator tmp = *this;
       tmp -= n;
@@ -227,20 +208,26 @@ public:
       // Only valid if both iterators are from the same flatten_view and other
       // <= *this
       std::ptrdiff_t dist = 0;
-      auto oit = other.m_outer_it;
-      auto inner_view = *oit;
-      auto iit = other.m_inner_it;
-      while (oit != m_outer_it) {
+      auto it = other;
+      // auto oit = other.m_outer_it;
+      // auto inner_view = *oit;
+      // auto iit = inner_view.begin() + (other.m_inner_it -
+      // other.m_inner_view.begin());
+      while (it.m_outer_it != m_outer_it) {
         // maybe simply add std::ranges::size
-        std::cout << std::ranges::size(inner_view) << std::endl;
-        std::cout << (iit - std::ranges::begin(inner_view)) << std::endl;
-        dist += std::ranges::size(inner_view) -
-                (iit - std::ranges::begin(inner_view));
-        ++oit;
-        inner_view = *oit;
-        iit = std::ranges::begin(inner_view);
+        // std::cout << std::ranges::size(it.m_inner_view) << std::endl;
+        // std::cout << (it.m_inner_it - std::ranges::begin(it.m_inner_view))
+        //           << std::endl;
+        dist += std::ranges::size(it.m_inner_view) -
+                (it.m_inner_it - std::ranges::begin(it.m_inner_view));
+        ++it.m_outer_it;
+        it.m_inner_view = *it.m_outer_it;
+        it.m_inner_it = std::ranges::begin(it.m_inner_view);
       }
-      dist += m_inner_it - iit;
+      dist +=
+          std::ranges::distance(std::ranges::begin(m_inner_view), m_inner_it) -
+          std::ranges::distance(std::ranges::begin(it.m_inner_view),
+                                it.m_inner_it);
       return dist;
     }
 
@@ -265,8 +252,8 @@ public:
     }
 
     OuterIter m_outer_it;
-    OuterIter m_outer_end;
-    Inner m_inner_view;
+    OuterSentinel m_outer_end;
+    mutable Inner m_inner_view;
     InnerIter m_inner_it;
   };
 
@@ -282,10 +269,10 @@ public:
   }
   sentinel end() {
     auto outer_end = std::ranges::end(m_outer);
-    return sentinel(outer_end, InnerIter{});
+    return sentinel(outer_end, InnerSentinel{});
   }
 
-  iterator::value_type operator[](std::size_t n) const {
+  iterator::value_type operator[](std::size_t n) {
     auto it = begin();
     it += n;
     return *it;
