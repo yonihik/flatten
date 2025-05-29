@@ -6,11 +6,6 @@
 #include <ranges>
 namespace flatten {
 
-template <std::input_iterator OuterIter,
-          std::sentinel_for<OuterIter> OuterSentinel>
-  requires std::ranges::input_range<std::iter_value_t<OuterIter>>
-class iterator;
-
 template <typename OuterSentinel, typename InnerSentinel> struct sentinel {
   sentinel() = default;
   sentinel(OuterSentinel outer_end, InnerSentinel inner_end)
