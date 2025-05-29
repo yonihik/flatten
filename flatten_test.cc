@@ -27,8 +27,9 @@ TEST(FlattenViewTest, WorksWithTransformAdaptor) {
   std::vector<int> expected{2, 4, 6, 8, 1, 2, 3, 4};
   std::vector<int> result;
   using any_view = ranges::any_view<int, ranges::category::random_access>;
-  std::vector<any_view> combined{any_view(flatten_view(transformed)),
-                                 any_view(ranges::views::all(flatten_view(nested)))};
+  std::vector<any_view> combined{
+      any_view(flatten_view(transformed)),
+      any_view(ranges::views::all(flatten_view(nested)))};
   for (int v : flatten_view(combined)) {
     result.push_back(v);
   }
@@ -46,10 +47,26 @@ TEST(FlattenViewTest, RecuresiveFlattening) {
   EXPECT_EQ(result, expected);
 }
 
-TEST(FlattenViewTest, input_range) {
+TEST(FlattenViewTest, input_of_random_access) {
   std::vector<std::vector<size_t>> v{{{1, 2}, {3, 4, 5}, {}, {6}}};
-  ranges::any_view<std::vector<size_t>, ranges::category::input> av = ranges::views::all(v);
+  ranges::any_view<std::vector<size_t>, ranges::category::input> av =
+      ranges::views::all(v);
   std::vector<int> expected{1, 2, 3, 4, 5, 6};
+  std::vector<int> result;
+  for (int elem : flatten_view(av)) {
+    result.push_back(elem);
+  }
+  EXPECT_EQ(result, expected);
+}
+
+TEST(FlattenViewTest, input_of_input_access) {
+  std::vector<size_t> v{1, 2};
+  std::vector<ranges::any_view<size_t, ranges::category::input>> views{
+      ranges::views::all(v), ranges::views::all(v)};
+  ranges::any_view<ranges::any_view<size_t, ranges::category::input>,
+                   ranges::category::input>
+      av = ranges::views::all(views);
+  std::vector<int> expected{1, 2, 1, 2};
   std::vector<int> result;
   for (int elem : flatten_view(av)) {
     result.push_back(elem);
