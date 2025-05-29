@@ -2,9 +2,9 @@
 #include "range/v3/view/any_view.hpp"
 #include <gtest/gtest.h>
 #include <iterator>
+#include <numeric>
 #include <ranges>
 #include <vector>
-
 TEST(FlattenViewTest, FlattensNestedVectors) {
   std::vector<std::vector<int>> nested{{{1, 2}, {3, 4, 5}, {}, {6}}};
   std::vector<int> expected{1, 2, 3, 4, 5, 6};
@@ -59,16 +59,38 @@ TEST(FlattenViewTest, input_of_random_access) {
   EXPECT_EQ(result, expected);
 }
 
-TEST(FlattenViewTest, input_of_input_access) {
-  std::vector<size_t> v{1, 2};
-  std::vector<ranges::any_view<size_t, ranges::category::input>> views{
-      ranges::views::all(v), ranges::views::all(v)};
-  ranges::any_view<ranges::any_view<size_t, ranges::category::input>,
+TEST(FlattenViewTest, input_of_input_iteration) {
+  // This test checks that we can flatten input_range of borrowed input_ranges.
+  using any_input_view = ranges::any_view<size_t, ranges::category::input>;
+  std::vector<size_t> vec{1, 2};
+  any_input_view v = ranges::views::all(vec);
+  std::vector<std::ranges::ref_view<any_input_view>> views{
+      std::ranges::ref_view(v), std::ranges::ref_view(v)};
+  ranges::any_view<std::ranges::ref_view<any_input_view>,
                    ranges::category::input>
       av = ranges::views::all(views);
+  any_input_view flattened = flatten_view(av);
   std::vector<int> expected{1, 2, 1, 2};
   std::vector<int> result;
-  for (int elem : flatten_view(av)) {
+  for (int elem : flattened) {
+    result.push_back(elem);
+  }
+  EXPECT_EQ(result, expected);
+}
+TEST(FlattenViewTest, forward_of_forward) {
+  // This test checks that we can flatten input_range of borrowed input_ranges.
+  using any_forward_view = ranges::any_view<size_t, ranges::category::forward>;
+  std::vector<size_t> vec{1, 2};
+  any_forward_view v = ranges::views::all(vec);
+  std::vector<std::ranges::ref_view<any_forward_view>> views{
+      std::ranges::ref_view(v), std::ranges::ref_view(v)};
+  ranges::any_view<std::ranges::ref_view<any_forward_view>,
+                   ranges::category::forward>
+      av = ranges::views::all(views);
+  any_forward_view flattened = flatten_view(av);
+  std::vector<int> expected{1, 2, 1, 2};
+  std::vector<int> result;
+  for (int elem : flattened) {
     result.push_back(elem);
   }
   EXPECT_EQ(result, expected);
