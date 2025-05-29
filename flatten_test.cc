@@ -1,4 +1,5 @@
 #include "flatten.h"
+#include "range/v3/view/any_view.hpp"
 #include <gtest/gtest.h>
 #include <iterator>
 #include <ranges>
@@ -23,10 +24,12 @@ TEST(FlattenViewTest, WorksWithTransformAdaptor) {
                          out.push_back(x * 2);
                        return out;
                      });
-
-  std::vector<int> expected{2, 4, 6, 8};
+  std::vector<int> expected{2, 4, 6, 8, 1, 2, 3, 4};
   std::vector<int> result;
-  for (int v : flatten_view(transformed)) {
+  using any_view = ranges::any_view<int, ranges::category::random_access>;
+  std::vector<any_view> combined{any_view(flatten_view(transformed)),
+                                 any_view(ranges::views::all(flatten_view(nested)))};
+  for (int v : flatten_view(combined)) {
     result.push_back(v);
   }
   EXPECT_EQ(result, expected);
