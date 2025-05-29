@@ -45,3 +45,14 @@ TEST(FlattenViewTest, RecuresiveFlattening) {
   }
   EXPECT_EQ(result, expected);
 }
+
+TEST(FlattenViewTest, input_range) {
+  std::vector<std::vector<size_t>> v{{{1, 2}, {3, 4, 5}, {}, {6}}};
+  ranges::any_view<std::vector<size_t>, ranges::category::input> av = ranges::views::all(v);
+  std::vector<int> expected{1, 2, 3, 4, 5, 6};
+  std::vector<int> result;
+  for (int elem : flatten_view(av)) {
+    result.push_back(elem);
+  }
+  EXPECT_EQ(result, expected);
+}
