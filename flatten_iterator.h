@@ -51,6 +51,11 @@ public:
   iterator(const iterator &other)
       : iterator(other.m_outer_it, other.m_outer_end, other.inner_index()) {}
 
+  iterator(const iterator &other)
+    requires std::ranges::borrowed_range<Inner>
+      : m_outer_it(other.m_outer_it), m_outer_end(other.m_outer_end),
+        m_inner_view(other.m_inner_view), m_inner_it(other.m_inner_it) {}
+
   friend void swap(iterator &first, iterator &second) {
     using std::swap;
 
