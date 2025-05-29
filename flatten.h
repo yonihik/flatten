@@ -38,12 +38,7 @@ public:
     friend class sentinel;
 
   public:
-    using iterator_category = std::random_access_iterator_tag;
     using value_type = std::ranges::range_value_t<Inner>;
-    using difference_type = std::ptrdiff_t;
-    using pointer = value_type *;
-    using reference = value_type &;
-    using iterator_concept = std::random_access_iterator_tag;
 
     iterator() = default;
     iterator(OuterIter outer_it, OuterSentinel outer_end,
