@@ -16,7 +16,8 @@ template <typename OuterSentinel, typename InnerSentinel> struct sentinel {
 };
 template <std::input_iterator OuterIter,
           std::sentinel_for<OuterIter> OuterSentinel>
-  requires std::ranges::input_range<std::iter_value_t<OuterIter>>
+  requires std::ranges::random_access_range<std::iter_value_t<OuterIter>> ||
+           std::ranges::borrowed_range<std::iter_value_t<OuterIter>>
 class iterator {
 
   using Inner = std::iter_value_t<OuterIter>;
@@ -25,12 +26,11 @@ class iterator {
 
 public:
   using value_type = std::ranges::range_value_t<Inner>;
+  using difference_type = std::ptrdiff_t;
 
   iterator() = default;
 
   iterator(OuterIter outer_it, OuterSentinel outer_end)
-    requires std::input_iterator<OuterIter> &&
-                 std::ranges::input_range<Inner>
       : m_outer_it(outer_it), m_outer_end(outer_end) {
     if (m_outer_it != m_outer_end) {
       m_inner_view = *m_outer_it;
@@ -49,6 +49,7 @@ public:
   }
   // i have no idea how to copy if Inner is not a random acess range
   iterator(const iterator &other)
+    requires std::ranges::random_access_range<Inner>
       : iterator(other.m_outer_it, other.m_outer_end, other.inner_index()) {}
 
   iterator(const iterator &other)
@@ -260,9 +261,7 @@ public:
   }
 
 private:
-  void skip_empty()
-    requires std::ranges::input_range<Inner>
-  {
+  void skip_empty() {
     while (m_inner_it == std::ranges::end(*m_inner_view)) {
       ++m_outer_it;
       if (m_outer_it == m_outer_end) {
