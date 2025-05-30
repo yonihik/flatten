@@ -44,10 +44,19 @@ public:
   }
 
   // Size support
-  size_t size() const {
+  size_t size() const
+    requires std::ranges::sized_range<Inner>
+  {
     std::size_t total = 0;
-    for (const auto &v : m_outer)
-      total += std::ranges::size(v);
+    if constexpr (std::ranges::view<Outer> || ranges::view_<Outer>) {
+      auto outer = m_outer;
+      for (const auto &v : outer) {
+        total += std::ranges::size(v);
+      }
+    } else {
+      for (const auto &v : m_outer)
+        total += std::ranges::size(v);
+    }
     return total;
   }
 };
