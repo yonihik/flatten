@@ -50,9 +50,7 @@ template <typename OuterSentinel, typename InnerSentinel> struct sentinel {
  */
 template <std::input_iterator OuterIter,
           std::sentinel_for<OuterIter> OuterSentinel>
-  requires std::ranges::random_access_range<std::iter_value_t<OuterIter>> ||
-           (borrowed_range<std::iter_value_t<OuterIter>> &&
-            std::ranges::input_range<std::iter_value_t<OuterIter>>)
+  requires std::ranges::input_range<std::iter_value_t<OuterIter>>
 class iterator {
 
   using Inner = std::iter_value_t<OuterIter>;
@@ -64,18 +62,21 @@ public:
   using difference_type = std::ptrdiff_t;
 
   iterator() = default;
-
-  iterator(OuterIter outer_it, OuterSentinel outer_end)
-      : m_outer_it(outer_it), m_outer_end(outer_end) {
+  template <typename Iter, typename Sentinel>
+  iterator(Iter &&outer_it, Sentinel &&outer_end)
+      : m_outer_it(std::forward<Iter>(outer_it)),
+        m_outer_end(std::forward<Sentinel>(outer_end)) {
     if (m_outer_it != m_outer_end) {
       m_inner_view = *m_outer_it;
       m_inner_it = std::ranges::begin(*m_inner_view);
     }
   }
   // assumes outer_it contains at least inner_idx elements
-  iterator(OuterIter outer_it, OuterSentinel outer_end, size_t inner_idx)
+  template <typename Iter, typename Sentinel>
+  iterator(Iter &&outer_it, Sentinel &&outer_end, size_t inner_idx)
     requires std::ranges::random_access_range<Inner>
-      : m_outer_it(outer_it), m_outer_end(outer_end) {
+      : m_outer_it(std::forward<Iter>(outer_it)),
+        m_outer_end(std::forward<Sentinel>(outer_end)) {
     if (m_outer_it != m_outer_end) {
       m_inner_view = *m_outer_it;
       m_inner_it = std::ranges::begin(*m_inner_view) + inner_idx;
