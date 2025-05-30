@@ -39,8 +39,7 @@ public:
   }
   // assumes outer_it contains at least inner_idx elements
   iterator(OuterIter outer_it, OuterSentinel outer_end, size_t inner_idx)
-    requires std::input_iterator<OuterIter> &&
-                 std::ranges::random_access_range<Inner>
+    requires std::ranges::random_access_range<Inner>
       : m_outer_it(outer_it), m_outer_end(outer_end) {
     if (m_outer_it != m_outer_end) {
       m_inner_view = *m_outer_it;
@@ -49,7 +48,7 @@ public:
   }
   // i have no idea how to copy if Inner is not a random acess range
   iterator(const iterator &other)
-    requires std::ranges::random_access_range<Inner>
+    requires std::ranges::random_access_range<Inner> && (!std::ranges::borrowed_range<Inner>)
       : iterator(other.m_outer_it, other.m_outer_end, other.inner_index()) {}
 
   iterator(const iterator &other)
@@ -81,7 +80,11 @@ public:
     return *this;
   }
 
-  iterator &operator--() {
+  iterator &operator--()
+    requires std::bidirectional_iterator<OuterIter> &&
+             std::ranges::random_access_range<Inner> &&
+             std::ranges::sized_range<Inner>
+  {
     while (m_inner_it == InnerIter{} ||
            m_inner_it == std::ranges::begin(*m_inner_view)) {
       --m_outer_it;
