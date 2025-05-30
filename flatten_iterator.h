@@ -14,10 +14,43 @@ template <typename OuterSentinel, typename InnerSentinel> struct sentinel {
   OuterSentinel m_outer_end;
   InnerSentinel m_inner_end;
 };
+/**
+ * @brief An iterator that flattens a range of ranges into a single sequence.
+ *
+ * This iterator is designed to traverse a "range of ranges" (i.e., a range
+ * whose elements are themselves ranges), presenting all the elements of the
+ * inner ranges as a single, flat sequence. It adapts to the capabilities of the
+ * underlying outer and inner iterators/ranges, providing the strongest iterator
+ * category possible.
+ *
+ * @tparam OuterIter The iterator type for the outer range (the range of
+ * ranges).
+ * @tparam OuterSentinel The sentinel type for the outer range.
+ *
+ * The iterator maintains its position using:
+ * - `m_outer_it`: The current iterator in the outer range.
+ * - `m_outer_end`: The end sentinel for the outer range.
+ * - `m_inner_view`: An optional holding the current inner range.
+ * - `m_inner_it`: The current iterator in the inner range.
+ *
+ * ### Iterator Category and Concept
+ * The iterator adapts its interface and category based on the concepts
+ * satisfied by its template arguments:
+ * - models input iterator if `OuterIter` is an input iterator and
+ *   `Inner` is either a borrowed input range or a random-access range.
+ * - models forward iterator if `OuterIter` is a forward iterator and
+ *  `Inner` is either a borrowed forward iterator or a random-acess range.
+ * - models random access iterator if `OuterIter` is a bidirectional iterator
+ *   and `Inner` is a random access and sized range.
+ * - models sized range if `Inner` is a sized range and `Outer` is either a view
+ * or const iterable.
+ *
+ */
 template <std::input_iterator OuterIter,
           std::sentinel_for<OuterIter> OuterSentinel>
   requires std::ranges::random_access_range<std::iter_value_t<OuterIter>> ||
-           std::ranges::borrowed_range<std::iter_value_t<OuterIter>>
+           (std::ranges::borrowed_range<std::iter_value_t<OuterIter>> &&
+            std::ranges::input_range<std::iter_value_t<OuterIter>>)
 class iterator {
 
   using Inner = std::iter_value_t<OuterIter>;
@@ -48,7 +81,8 @@ public:
   }
   // i have no idea how to copy if Inner is not a random acess range
   iterator(const iterator &other)
-    requires std::ranges::random_access_range<Inner> && (!std::ranges::borrowed_range<Inner>)
+    requires std::ranges::random_access_range<Inner> &&
+             (!std::ranges::borrowed_range<Inner>)
       : iterator(other.m_outer_it, other.m_outer_end, other.inner_index()) {}
 
   iterator(const iterator &other)
@@ -72,9 +106,15 @@ public:
     swap(*this, tmp);
     return *this;
   }
-  value_type operator*() const { return *m_inner_it; }
+  value_type operator*() const
+    requires std::ranges::input_range<Inner>
+  {
+    return *m_inner_it;
+  }
 
-  iterator &operator++() {
+  iterator &operator++()
+    requires std::ranges::input_range<Inner>
+  {
     ++m_inner_it;
     skip_empty();
     return *this;
@@ -172,7 +212,7 @@ public:
 
   // Random access support
   iterator &operator+=(size_t n)
-    requires std::random_access_iterator<InnerIter> &&
+    requires std::ranges::random_access_range<Inner> &&
              std::ranges::sized_range<Inner>
   {
     while (n > 0) {
@@ -199,7 +239,7 @@ public:
 
   // Random access support
   iterator &operator-=(size_t n)
-    requires std::random_access_iterator<InnerIter> &&
+    requires std::ranges::random_access_range<Inner> &&
              std::ranges::sized_range<Inner>
   {
     while (n > 0) {
@@ -235,7 +275,7 @@ public:
   }
 
   std::ptrdiff_t operator-(const iterator &other) const
-    requires std::random_access_iterator<InnerIter> &&
+    requires std::ranges::random_access_range<Inner> &&
              std::ranges::sized_range<Inner>
   {
     // Only valid if both iterators are from the same flatten_view and other
@@ -256,7 +296,7 @@ public:
   }
 
   value_type operator[](std::ptrdiff_t n) const
-    requires std::random_access_iterator<InnerIter> &&
+    requires std::ranges::random_access_range<Inner> &&
              std::ranges::sized_range<Inner>
   {
     auto tmp = *this;
