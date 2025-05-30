@@ -5,7 +5,9 @@
 #include <iterator>
 #include <ranges>
 namespace flatten {
-
+template <typename Rng>
+concept borrowed_range =
+    (std::ranges::borrowed_range<Rng> || ranges::borrowed_range<Rng>);
 template <typename OuterSentinel, typename InnerSentinel> struct sentinel {
   sentinel() = default;
   sentinel(OuterSentinel outer_end, InnerSentinel inner_end)
@@ -49,7 +51,7 @@ template <typename OuterSentinel, typename InnerSentinel> struct sentinel {
 template <std::input_iterator OuterIter,
           std::sentinel_for<OuterIter> OuterSentinel>
   requires std::ranges::random_access_range<std::iter_value_t<OuterIter>> ||
-           (std::ranges::borrowed_range<std::iter_value_t<OuterIter>> &&
+           (borrowed_range<std::iter_value_t<OuterIter>> &&
             std::ranges::input_range<std::iter_value_t<OuterIter>>)
 class iterator {
 
@@ -81,12 +83,11 @@ public:
   }
   // i have no idea how to copy if Inner is not a random acess range
   iterator(const iterator &other)
-    requires std::ranges::random_access_range<Inner> &&
-             (!std::ranges::borrowed_range<Inner>)
+    requires std::ranges::random_access_range<Inner> && (!borrowed_range<Inner>)
       : iterator(other.m_outer_it, other.m_outer_end, other.inner_index()) {}
 
   iterator(const iterator &other)
-    requires std::ranges::borrowed_range<Inner>
+    requires borrowed_range<Inner>
       : m_outer_it(other.m_outer_it), m_outer_end(other.m_outer_end),
         m_inner_view(other.m_inner_view), m_inner_it(other.m_inner_it) {}
 
