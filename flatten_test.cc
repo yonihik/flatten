@@ -5,6 +5,7 @@
 #include <numeric>
 #include <ranges>
 #include <vector>
+
 TEST(FlattenViewTest, FlattensNestedVectors) {
   std::vector<std::vector<int>> nested{{{1, 2}, {3, 4, 5}, {}, {6}}};
   std::vector<int> expected{1, 2, 3, 4, 5, 6};
@@ -88,6 +89,54 @@ TEST(FlattenViewTest, forward_of_forward) {
                    ranges::category::forward>
       av = ranges::views::all(views);
   any_forward_view flattened = flatten_view(av);
+  std::vector<int> expected{1, 2, 1, 2};
+  std::vector<int> result;
+  for (int elem : flattened) {
+    result.push_back(elem);
+  }
+  EXPECT_EQ(result, expected);
+}
+
+TEST(FlattenViewTest, bidirectional_of_bidirectional) {
+  // This test checks that we can flatten input_range of borrowed input_ranges.
+  using inner_view = ranges::any_view<size_t, ranges::category::random_access |
+                                                  ranges::category::sized>;
+
+  std::vector<size_t> vec{1, 2};
+  inner_view v = ranges::views::all(vec);
+  std::vector<std::ranges::ref_view<inner_view>> views{
+      std::ranges::ref_view(v), std::ranges::ref_view(v)};
+  ranges::any_view<std::ranges::ref_view<inner_view>,
+                   ranges::category::bidirectional>
+      av = ranges::views::all(views);
+  ranges::any_view<size_t, ranges::category::bidirectional> flattened =
+      flatten_view(av);
+  // std::ranges::begin(flattened);
+  // static_assert(std::ranges::random_access_range<std::ranges::range_value_t<decltype(av)>>);
+  // static_assert(std::ranges::borrowed_range<std::ranges::range_value_t<decltype(av)>>);
+  std::vector<int> expected{1, 2, 1, 2};
+  std::vector<int> result;
+  for (int elem : flattened) {
+    result.push_back(elem);
+  }
+  EXPECT_EQ(result, expected);
+}
+
+TEST(FlattenViewTest, bidirectional_of_random_access) {
+  // This test checks that we can flatten input_range of borrowed input_ranges.
+  using inner_view = ranges::any_view<size_t, ranges::category::random_access |
+                                                  ranges::category::sized>;
+
+  std::vector<size_t> vec{1, 2};
+  inner_view v = ranges::views::all(vec);
+  std::vector<std::ranges::ref_view<inner_view>> views{
+      std::ranges::ref_view(v), std::ranges::ref_view(v)};
+  ranges::any_view<std::ranges::ref_view<inner_view>,
+                   ranges::category::bidirectional>
+      av = ranges::views::all(views);
+  ranges::any_view<size_t, ranges::category::random_access |
+  ranges::category::sized> flattened =
+      flatten_view(av);
   std::vector<int> expected{1, 2, 1, 2};
   std::vector<int> result;
   for (int elem : flattened) {
