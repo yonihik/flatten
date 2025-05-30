@@ -89,7 +89,8 @@ public:
            m_inner_it == std::ranges::begin(*m_inner_view)) {
       --m_outer_it;
       m_inner_view = *m_outer_it;
-      m_inner_it = std::ranges::end(*m_inner_view);
+      m_inner_it =
+          std::ranges::begin(*m_inner_view) + std::ranges::size(*m_inner_view);
     }
     --m_inner_it;
     return *this;
