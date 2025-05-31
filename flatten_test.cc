@@ -144,3 +144,19 @@ TEST(FlattenViewTest, bidirectional_of_random_access) {
   }
   EXPECT_EQ(result, expected);
 }
+
+TEST(FlattenViewTest, istream_view) {
+  std::istringstream input("Hello World !");
+  std::istringstream input2("lorem ipsum dolor sit amet");
+  auto view = std::views::istream<std::string>(input) | std::views::take(2);
+  auto view2 =
+      std::views::istream<std::string>(input2) | std::views::take(2);
+
+  auto views = std::vector{view, view2};
+  std::vector<std::string> expected{"Hello", "World", "lorem", "ipsum"};
+  std::vector<std::string> result;
+  for (const auto &elem : flatten_view(views)) {
+    result.push_back(elem);
+  }
+  EXPECT_EQ(result, expected);
+}

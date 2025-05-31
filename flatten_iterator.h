@@ -10,11 +10,13 @@ concept borrowed_range =
     (std::ranges::borrowed_range<Rng> || ranges::borrowed_range<Rng>);
 template <typename OuterSentinel, typename InnerSentinel> struct sentinel {
   sentinel() = default;
-  sentinel(OuterSentinel outer_end, InnerSentinel inner_end)
+
+  sentinel(OuterSentinel outer_end,
+           std::optional<InnerSentinel> inner_end = std::nullopt)
       : m_outer_end(outer_end), m_inner_end(inner_end) {}
 
   OuterSentinel m_outer_end;
-  InnerSentinel m_inner_end;
+  std::optional<InnerSentinel> m_inner_end;
 };
 /**
  * @brief An iterator that flattens a range of ranges into a single sequence.
@@ -111,13 +113,13 @@ public:
   value_type operator*() const
     requires std::ranges::input_range<Inner>
   {
-    return *m_inner_it;
+    return *(*m_inner_it);
   }
 
   iterator &operator++()
     requires std::ranges::input_range<Inner>
   {
-    ++m_inner_it;
+    ++(*m_inner_it);
     skip_empty();
     return *this;
   }
@@ -127,14 +129,14 @@ public:
              std::ranges::random_access_range<Inner> &&
              std::ranges::sized_range<Inner>
   {
-    while (m_inner_it == InnerIter{} ||
+    while (!m_inner_it.has_value() ||
            m_inner_it == std::ranges::begin(*m_inner_view)) {
       --m_outer_it;
       m_inner_view = *m_outer_it;
       m_inner_it =
           std::ranges::begin(*m_inner_view) + std::ranges::size(*m_inner_view);
     }
-    --m_inner_it;
+    --(*m_inner_it);
     return *this;
   }
 
@@ -199,7 +201,7 @@ public:
     } else if (m_outer_it > other.m_outer_it) {
       return false;
     }
-    return m_inner_it < other.m_inner_it;
+    return inner_index() < other.inner_index();
   }
 
   bool operator==(const iterator &other) const
@@ -220,16 +222,17 @@ public:
     while (n > 0) {
       size_t remain =
           std::ranges::size(*m_inner_view) -
-          std::ranges::distance(std::ranges::begin(*m_inner_view), m_inner_it);
+          std::ranges::distance(std::ranges::begin(*m_inner_view), *m_inner_it);
       if (n < remain) {
-        m_inner_it += n;
+        *m_inner_it += n;
         break;
       } else {
         n -= remain;
         ++m_outer_it;
         if (m_outer_it == m_outer_end) {
           m_inner_view = std::nullopt;
-          m_inner_it = InnerIter{};
+          m_inner_it = std::nullopt;
+          ;
           break; // maybe continue?
         }
         m_inner_view = *m_outer_it;
@@ -245,7 +248,12 @@ public:
              std::ranges::sized_range<Inner>
   {
     while (n > 0) {
-      auto remain = m_inner_it - std::ranges::begin(*m_inner_view);
+      auto remain = m_inner_it
+                        .transform([this](const auto &it) {
+                          return std::ranges::distance(
+                              std::ranges::begin(*m_inner_view), *m_inner_it);
+                        })
+                        .value_or(0);
       if (n < remain) {
         m_inner_it -= n;
         break;
@@ -290,10 +298,7 @@ public:
       it.m_inner_view = *it.m_outer_it;
       it.m_inner_it = std::ranges::begin(*it.m_inner_view);
     }
-    dist +=
-        std::ranges::distance(std::ranges::begin(*m_inner_view), m_inner_it) -
-        std::ranges::distance(std::ranges::begin(*it.m_inner_view),
-                              it.m_inner_it);
+    dist += inner_index() - it.inner_index();
     return dist;
   }
 
@@ -313,7 +318,7 @@ private:
       if (m_outer_it == m_outer_end) {
         // Reached the end of the outer range
         m_inner_view = std::nullopt;
-        m_inner_it = InnerIter{};
+        m_inner_it = std::nullopt;
         return;
       }
       m_inner_view = *m_outer_it;
@@ -324,13 +329,14 @@ private:
   size_t inner_index() const
     requires std::ranges::forward_range<Inner>
   {
-    return std::ranges::distance(std::ranges::begin(*m_inner_view), m_inner_it);
+    return std::ranges::distance(std::ranges::begin(*m_inner_view),
+                                 *m_inner_it);
   }
 
   OuterIter m_outer_it;
   OuterSentinel m_outer_end;
   mutable std::optional<Inner>
       m_inner_view; // mutable to allow const position calculation
-  InnerIter m_inner_it;
+  std::optional<InnerIter> m_inner_it;
 };
 } // namespace flatten

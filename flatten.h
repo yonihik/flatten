@@ -33,9 +33,7 @@ public:
   {
     return iterator(std::ranges::begin(m_outer), std::ranges::end(m_outer), 0);
   }
-  sentinel end() {
-    return sentinel(std::ranges::end(m_outer), InnerSentinel{});
-  }
+  sentinel end() { return sentinel(std::ranges::end(m_outer)); }
 
   iterator::value_type operator[](std::size_t n) {
     auto it = begin();
