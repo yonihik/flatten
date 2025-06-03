@@ -71,6 +71,7 @@ public:
     if (m_outer_it != m_outer_end) {
       m_inner_view = *m_outer_it;
       m_inner_it = std::ranges::begin(*m_inner_view);
+      m_inner_index = 0;
     }
   }
   // assumes outer_it contains at least inner_idx elements
@@ -78,21 +79,25 @@ public:
   iterator(Iter &&outer_it, Sentinel &&outer_end, size_t inner_idx)
     requires std::ranges::random_access_range<Inner>
       : m_outer_it(std::forward<Iter>(outer_it)),
-        m_outer_end(std::forward<Sentinel>(outer_end)) {
+        m_outer_end(std::forward<Sentinel>(outer_end)),
+        m_inner_index(inner_idx) {
     if (m_outer_it != m_outer_end) {
       m_inner_view = *m_outer_it;
-      m_inner_it = std::ranges::begin(*m_inner_view) + inner_idx;
+      m_inner_it = std::ranges::begin(*m_inner_view) + *m_inner_index;
     }
   }
-  // i have no idea how to copy if Inner is not a random acess range
+
   iterator(const iterator &other)
-    requires std::ranges::random_access_range<Inner> && (!borrowed_range<Inner>)
-      : iterator(other.m_outer_it, other.m_outer_end, other.inner_index()) {}
+    requires std::ranges::random_access_range<Inner> &&
+             std::copyable<OuterIter> && std::copyable<OuterSentinel> &&
+             (!borrowed_range<Inner>)
+      : iterator(other.m_outer_it, other.m_outer_end, *other.m_inner_index) {}
 
   iterator(const iterator &other)
     requires borrowed_range<Inner>
       : m_outer_it(other.m_outer_it), m_outer_end(other.m_outer_end),
-        m_inner_view(other.m_inner_view), m_inner_it(other.m_inner_it) {}
+        m_inner_view(other.m_inner_view), m_inner_it(other.m_inner_it),
+        m_inner_index(other.m_inner_index) {}
 
   friend void swap(iterator &first, iterator &second) {
     using std::swap;
@@ -103,6 +108,7 @@ public:
     swap(first.m_outer_end, second.m_outer_end);
     swap(first.m_inner_view, second.m_inner_view);
     swap(first.m_inner_it, second.m_inner_it);
+    swap(first.m_inner_index, second.m_inner_index);
   }
 
   iterator &operator=(const iterator &other) {
@@ -120,6 +126,7 @@ public:
     requires std::ranges::input_range<Inner>
   {
     ++(*m_inner_it);
+    ++(*m_inner_index);
     skip_empty();
     return *this;
   }
@@ -129,12 +136,11 @@ public:
              std::ranges::random_access_range<Inner> &&
              std::ranges::sized_range<Inner>
   {
-    while (!m_inner_it.has_value() ||
-           m_inner_it == std::ranges::begin(*m_inner_view)) {
+    while (!m_inner_it.has_value() || m_inner_index == 0) {
       --m_outer_it;
       m_inner_view = *m_outer_it;
-      m_inner_it =
-          std::ranges::begin(*m_inner_view) + std::ranges::size(*m_inner_view);
+      m_inner_index = std::ranges::size(*m_inner_view);
+      m_inner_it = std::ranges::begin(*m_inner_view) + *m_inner_index;
     }
     --(*m_inner_it);
     return *this;
@@ -152,7 +158,8 @@ public:
     return tmp;
   }
   bool operator==(const sentinel<OuterSentinel, InnerSentinel> &s) const {
-    return m_outer_it == s.m_outer_end && m_inner_it == s.m_inner_end;
+    return m_outer_it == s.m_outer_end &&
+           m_inner_it == s.m_inner_end; // maybe compare indices?
   }
   bool operator>=(const iterator &other) const
     requires std::forward_iterator<OuterIter> &&
@@ -163,7 +170,7 @@ public:
     } else if (m_outer_it < other.m_outer_it) {
       return false;
     }
-    return inner_index() >= other.inner_index();
+    return m_inner_index >= other.m_inner_index;
   }
 
   bool operator>(const iterator &other) const
@@ -175,7 +182,7 @@ public:
     } else if (m_outer_it < other.m_outer_it) {
       return false;
     }
-    return inner_index() > other.inner_index();
+    return m_inner_index > other.m_inner_index;
   }
 
   bool operator<=(const iterator &other) const
@@ -188,7 +195,7 @@ public:
     } else if (m_outer_it > other.m_outer_it) {
       return false;
     }
-    return inner_index() <= other.inner_index();
+    return m_inner_index <= other.m_inner_index;
   }
 
   bool operator<(const iterator &other) const
@@ -201,7 +208,7 @@ public:
     } else if (m_outer_it > other.m_outer_it) {
       return false;
     }
-    return inner_index() < other.inner_index();
+    return m_inner_index < other.m_inner_index;
   }
 
   bool operator==(const iterator &other) const
@@ -209,7 +216,7 @@ public:
              std::ranges::forward_range<Inner>
   {
     return m_outer_it == other.m_outer_it &&
-           inner_index() == other.inner_index();
+           m_inner_index == other.m_inner_index;
   }
 
   bool operator!=(const iterator &other) const { return !(*this == other); }
@@ -220,11 +227,10 @@ public:
              std::ranges::sized_range<Inner>
   {
     while (n > 0) {
-      size_t remain =
-          std::ranges::size(*m_inner_view) -
-          std::ranges::distance(std::ranges::begin(*m_inner_view), *m_inner_it);
+      size_t remain = std::ranges::size(*m_inner_view) - *m_inner_index;
       if (n < remain) {
         *m_inner_it += n;
+        *m_inner_index += n;
         break;
       } else {
         n -= remain;
@@ -232,11 +238,12 @@ public:
         if (m_outer_it == m_outer_end) {
           m_inner_view = std::nullopt;
           m_inner_it = std::nullopt;
-          ;
+          m_inner_index = std::nullopt;
           break; // maybe continue?
         }
         m_inner_view = *m_outer_it;
         m_inner_it = std::ranges::begin(*m_inner_view);
+        m_inner_index = 0;
       }
     }
     return *this;
@@ -248,21 +255,17 @@ public:
              std::ranges::sized_range<Inner>
   {
     while (n > 0) {
-      auto remain = m_inner_it
-                        .transform([this](const auto &it) {
-                          return std::ranges::distance(
-                              std::ranges::begin(*m_inner_view), *m_inner_it);
-                        })
-                        .value_or(0);
+      auto remain = m_inner_index.value_or(0);
       if (n < remain) {
-        m_inner_it -= n;
+        *m_inner_it -= n;
+        *m_inner_index -= n;
         break;
       } else {
         n -= remain;
         --m_outer_it;
         m_inner_view = *m_outer_it;
-        m_inner_it = std::ranges::begin(*m_inner_view) +
-                     std::ranges::size(*m_inner_view);
+        m_inner_index = std::ranges::size(*m_inner_view);
+        m_inner_it = std::ranges::begin(*m_inner_view) + *m_inner_index;
       }
     }
     return *this;
@@ -293,12 +296,13 @@ public:
     std::ptrdiff_t dist = 0;
     auto it = other;
     while (it.m_outer_it != m_outer_it) {
-      dist += std::ranges::size(*it.m_inner_view) - it.inner_index();
+      dist += std::ranges::size(*it.m_inner_view) - *it.m_inner_index;
       ++it.m_outer_it;
       it.m_inner_view = *it.m_outer_it;
+      it.m_inner_index = 0;
       it.m_inner_it = std::ranges::begin(*it.m_inner_view);
     }
-    dist += inner_index() - it.inner_index();
+    dist += *m_inner_index - *it.m_inner_index;
     return dist;
   }
 
@@ -319,18 +323,13 @@ private:
         // Reached the end of the outer range
         m_inner_view = std::nullopt;
         m_inner_it = std::nullopt;
+        m_inner_index = std::nullopt;
         return;
       }
       m_inner_view = *m_outer_it;
       m_inner_it = std::ranges::begin(*m_inner_view);
+      m_inner_index = 0;
     }
-  }
-
-  size_t inner_index() const
-    requires std::ranges::forward_range<Inner>
-  {
-    return std::ranges::distance(std::ranges::begin(*m_inner_view),
-                                 *m_inner_it);
   }
 
   OuterIter m_outer_it;
@@ -338,5 +337,6 @@ private:
   mutable std::optional<Inner>
       m_inner_view; // mutable to allow const position calculation
   std::optional<InnerIter> m_inner_it;
+  std::optional<size_t> m_inner_index;
 };
 } // namespace flatten
