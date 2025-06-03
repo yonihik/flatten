@@ -63,7 +63,10 @@ public:
   using value_type = std::ranges::range_value_t<Inner>;
   using difference_type = std::ptrdiff_t;
 
-  iterator() = default;
+  iterator()
+    requires std::default_initializable<OuterIter> &&
+                 std::default_initializable<OuterSentinel>
+  = default;
   template <typename Iter, typename Sentinel>
   iterator(Iter &&outer_it, Sentinel &&outer_end)
       : m_outer_it(std::forward<Iter>(outer_it)),
