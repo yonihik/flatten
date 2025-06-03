@@ -76,8 +76,11 @@ public:
       m_inner_it = std::ranges::begin(*m_inner_view);
       m_inner_index = 0;
     }
+    skip_empty();
   }
-  // assumes outer_it contains at least inner_idx elements
+
+  // assumes outer_it contains at least inner_idx elements - TODO: make this one
+  // protected
   template <typename Iter, typename Sentinel>
   iterator(Iter &&outer_it, Sentinel &&outer_end, size_t inner_idx)
     requires std::ranges::random_access_range<Inner>
@@ -140,10 +143,7 @@ public:
              std::ranges::sized_range<Inner>
   {
     while (!m_inner_it.has_value() || m_inner_index == 0) {
-      --m_outer_it;
-      m_inner_view = *m_outer_it;
-      m_inner_index = std::ranges::size(*m_inner_view);
-      m_inner_it = std::ranges::begin(*m_inner_view) + *m_inner_index;
+      retreat_block();
     }
     --(*m_inner_it);
     return *this;
@@ -236,17 +236,8 @@ public:
         *m_inner_index += n;
         break;
       } else {
-        n -= remain;
-        ++m_outer_it;
-        if (m_outer_it == m_outer_end) {
-          m_inner_view = std::nullopt;
-          m_inner_it = std::nullopt;
-          m_inner_index = std::nullopt;
-          break; // maybe continue?
-        }
-        m_inner_view = *m_outer_it;
-        m_inner_it = std::ranges::begin(*m_inner_view);
-        m_inner_index = 0;
+        n += remain;
+        advance_block();
       }
     }
     return *this;
@@ -265,10 +256,7 @@ public:
         break;
       } else {
         n -= remain;
-        --m_outer_it;
-        m_inner_view = *m_outer_it;
-        m_inner_index = std::ranges::size(*m_inner_view);
-        m_inner_it = std::ranges::begin(*m_inner_view) + *m_inner_index;
+        retreat_block();
       }
     }
     return *this;
@@ -300,10 +288,7 @@ public:
     auto it = other;
     while (it.m_outer_it != m_outer_it) {
       dist += std::ranges::size(*it.m_inner_view) - *it.m_inner_index;
-      ++it.m_outer_it;
-      it.m_inner_view = *it.m_outer_it;
-      it.m_inner_index = 0;
-      it.m_inner_it = std::ranges::begin(*it.m_inner_view);
+      it.advance_block();
     }
     dist += *m_inner_index - *it.m_inner_index;
     return dist;
@@ -320,15 +305,26 @@ public:
 
 private:
   void skip_empty() {
-    while (m_inner_it == std::ranges::end(*m_inner_view)) {
-      ++m_outer_it;
-      if (m_outer_it == m_outer_end) {
-        // Reached the end of the outer range
-        m_inner_view = std::nullopt;
-        m_inner_it = std::nullopt;
-        m_inner_index = std::nullopt;
-        return;
-      }
+    while (m_outer_it != m_outer_end &&
+           m_inner_it == std::ranges::end(*m_inner_view)) {
+      advance_block();
+    }
+  }
+
+  void retreat_block() {
+    --m_outer_it;
+    m_inner_view = *m_outer_it;
+    m_inner_index = std::ranges::size(*m_inner_view);
+    m_inner_it = std::ranges::begin(*m_inner_view) + *m_inner_index;
+  }
+
+  void advance_block() {
+    ++m_outer_it;
+    if (m_outer_it == m_outer_end) {
+      m_inner_view = std::nullopt;
+      m_inner_it = std::nullopt;
+      m_inner_index = std::nullopt;
+    } else {
       m_inner_view = *m_outer_it;
       m_inner_it = std::ranges::begin(*m_inner_view);
       m_inner_index = 0;
