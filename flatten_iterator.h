@@ -146,6 +146,7 @@ public:
       retreat_block();
     }
     --(*m_inner_it);
+    --(*m_inner_index);
     return *this;
   }
 
@@ -236,7 +237,7 @@ public:
         *m_inner_index += n;
         break;
       } else {
-        n += remain;
+        n -= remain;
         advance_block();
       }
     }
@@ -250,7 +251,7 @@ public:
   {
     while (n > 0) {
       auto remain = m_inner_index.value_or(0);
-      if (n < remain) {
+      if (n <= remain) {
         *m_inner_it -= n;
         *m_inner_index -= n;
         break;
